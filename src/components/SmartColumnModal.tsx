@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Sparkles, X, ChevronLeft, ChevronRight, PlayCircle, Zap, Crown, Info, CheckCircle2, Plus, ChevronDown, Globe, MapPin, Clock, FileText, MoreHorizontal } from "lucide-react";
+import { Sparkles, X, ChevronLeft, ChevronRight, PlayCircle, Zap, Crown, Info, CheckCircle2, Plus, ChevronDown, Globe, MapPin, Clock, FileText, MoreHorizontal, Mic, MicOff, Library, Search } from "lucide-react";
 import PromptBuilder from "./smart-column/PromptBuilder";
 import PreviewSystem from "./smart-column/PreviewSystem";
 import ExecutionMonitor from "./smart-column/ExecutionMonitor";
@@ -97,6 +97,75 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
   const [cursorPosition, setCursorPosition] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Voice input state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
+
+  // Dynamic placeholder state
+  const [placeholderText, setPlaceholderText] = useState("");
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [typingSpeed, setTypingSpeed] = useState(100);
+
+  // Template library state
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+
+  // Lock body scroll when template library is open
+  useEffect(() => {
+    if (showTemplateLibrary) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showTemplateLibrary]);
+
+  const placeholderExamples = [
+    "Is {{CONTACT_NAME}} of Indian origin?",
+    "Did {{COMPANY_NAME}} raise funding recently?",
+    "What technologies does {{COMPANY_DOMAIN}} use?",
+    "Find the LinkedIn profile of {{CONTACT_NAME}}",
+    "What is the revenue range of {{COMPANY_NAME}}?",
+    "Press / or hover for column suggestions...",
+  ];
+
+  // Template library data
+  const templateLibrary = [
+    { category: "Company Research", template: "What is the revenue of {{COMPANY_NAME}}?", description: "Get company revenue information" },
+    { category: "Company Research", template: "How many employees does {{COMPANY_NAME}} have?", description: "Find employee count" },
+    { category: "Company Research", template: "What industry is {{COMPANY_NAME}} in?", description: "Identify company industry" },
+    { category: "Company Research", template: "When was {{COMPANY_NAME}} founded?", description: "Get founding date" },
+    { category: "Company Research", template: "Who are the main competitors of {{COMPANY_NAME}}?", description: "Find competitors" },
+    { category: "Funding & Investment", template: "Did {{COMPANY_NAME}} raise funding recently?", description: "Check recent funding rounds" },
+    { category: "Funding & Investment", template: "What is the total funding of {{COMPANY_NAME}}?", description: "Get total funding amount" },
+    { category: "Funding & Investment", template: "Who are the investors in {{COMPANY_NAME}}?", description: "List company investors" },
+    { category: "Funding & Investment", template: "What is the valuation of {{COMPANY_NAME}}?", description: "Get company valuation" },
+    { category: "Funding & Investment", template: "What funding stage is {{COMPANY_NAME}} at?", description: "Identify funding stage" },
+    { category: "Contact Information", template: "Find the LinkedIn profile of {{CONTACT_NAME}}", description: "Get LinkedIn URL" },
+    { category: "Contact Information", template: "What is the email address of {{CONTACT_NAME}}?", description: "Find email address" },
+    { category: "Contact Information", template: "What is the phone number for {{COMPANY_NAME}}?", description: "Get phone number" },
+    { category: "Contact Information", template: "Find the Twitter handle of {{COMPANY_NAME}}", description: "Get Twitter profile" },
+    { category: "Contact Information", template: "What is the official website of {{COMPANY_NAME}}?", description: "Get company website" },
+    { category: "Technology Stack", template: "What technologies does {{COMPANY_DOMAIN}} use?", description: "Identify tech stack" },
+    { category: "Technology Stack", template: "Does {{COMPANY_NAME}} use AWS or Azure?", description: "Identify cloud provider" },
+    { category: "Technology Stack", template: "What CRM does {{COMPANY_NAME}} use?", description: "Find CRM system" },
+    { category: "Technology Stack", template: "What marketing tools does {{COMPANY_NAME}} use?", description: "Identify marketing stack" },
+    { category: "Technology Stack", template: "Does {{COMPANY_NAME}} use Salesforce?", description: "Check Salesforce usage" },
+    { category: "Job & Role", template: "What is the job title of {{CONTACT_NAME}}?", description: "Get current job title" },
+    { category: "Job & Role", template: "How long has {{CONTACT_NAME}} been in their current role?", description: "Get role duration" },
+    { category: "Job & Role", template: "What department does {{CONTACT_NAME}} work in?", description: "Identify department" },
+    { category: "Job & Role", template: "Is {{CONTACT_NAME}} a decision maker?", description: "Assess decision-making authority" },
+    { category: "Job & Role", template: "What is the seniority level of {{CONTACT_NAME}}?", description: "Identify seniority" },
+    { category: "Demographics", template: "Is {{CONTACT_NAME}} of Indian origin?", description: "Check ethnic background" },
+    { category: "Demographics", template: "Where is {{CONTACT_NAME}} located?", description: "Get location" },
+    { category: "Demographics", template: "What is the age range of {{CONTACT_NAME}}?", description: "Estimate age range" },
+    { category: "Demographics", template: "What languages does {{CONTACT_NAME}} speak?", description: "Identify languages" },
+    { category: "Demographics", template: "Where did {{CONTACT_NAME}} go to university?", description: "Get education info" },
+  ];
+
   // Preview results with tier information
   const [previewResults, setPreviewResults] = useState<Array<{
     accountName: string;
@@ -113,6 +182,43 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
   ]);
 
   const isPromptValid = prompt.trim().length > 0;
+
+  // Typewriter effect for placeholder
+  useEffect(() => {
+    if (prompt.length > 0) {
+      // Don't show placeholder animation if user has typed something
+      return;
+    }
+
+    const currentText = placeholderExamples[placeholderIndex];
+
+    const timer = setTimeout(() => {
+      if (!isDeleting) {
+        // Typing
+        if (placeholderText.length < currentText.length) {
+          setPlaceholderText(currentText.slice(0, placeholderText.length + 1));
+          setTypingSpeed(100);
+        } else {
+          // Finished typing, wait before deleting
+          setTypingSpeed(2000);
+          setIsDeleting(true);
+        }
+      } else {
+        // Deleting
+        if (placeholderText.length > 0) {
+          setPlaceholderText(currentText.slice(0, placeholderText.length - 1));
+          setTypingSpeed(50);
+        } else {
+          // Finished deleting, move to next example
+          setIsDeleting(false);
+          setPlaceholderIndex((prev) => (prev + 1) % placeholderExamples.length);
+          setTypingSpeed(500);
+        }
+      }
+    }, typingSpeed);
+
+    return () => clearTimeout(timer);
+  }, [placeholderText, isDeleting, placeholderIndex, typingSpeed, prompt, placeholderExamples]);
 
   // Handle "/" key for column insertion
   const handlePromptKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -135,6 +241,7 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
     }
   };
 
+
   // Handle column selection from dropdown
   const handleColumnSelect = (columnName: string) => {
     if (!selectedColumns.includes(columnName)) {
@@ -150,6 +257,63 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
 
     setShowColumnDropdown(false);
     textareaRef.current?.focus();
+  };
+
+  // Handle voice input
+  const handleVoiceInput = () => {
+    if (isRecording) {
+      // Stop recording
+      if (recognition) {
+        recognition.stop();
+      }
+      setIsRecording(false);
+    } else {
+      // Start recording
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const recognitionInstance = new SpeechRecognition();
+
+        recognitionInstance.continuous = true;
+        recognitionInstance.interimResults = true;
+        recognitionInstance.lang = 'en-US';
+
+        recognitionInstance.onstart = () => {
+          setIsRecording(true);
+        };
+
+        recognitionInstance.onresult = (event: any) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + ' ';
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            setPrompt((prev) => prev + finalTranscript);
+          }
+        };
+
+        recognitionInstance.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsRecording(false);
+        };
+
+        recognitionInstance.onend = () => {
+          setIsRecording(false);
+        };
+
+        setRecognition(recognitionInstance);
+        recognitionInstance.start();
+      } else {
+        alert('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
+      }
+    }
   };
 
   const handleNext = () => {
@@ -321,8 +485,8 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
   return (
     <>
       <Sheet open={open} onOpenChange={(newOpen: boolean) => {
-        // If preview is open, don't allow Sheet to close via its own backdrop
-        if (!newOpen && showPreviewSidebar) {
+        // If preview or template library is open, don't allow Sheet to close via its own backdrop
+        if (!newOpen && (showPreviewSidebar || showTemplateLibrary)) {
           return;
         }
         onOpenChange(newOpen);
@@ -414,18 +578,18 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
                   </div>
 
                   {/* Extended White Container - includes textarea + separator + config */}
-                  <div className="relative rounded-xl border-2 border-border bg-card shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                    <div className="w-full min-h-[280px] p-4 flex flex-col">
-                      <textarea
-                        ref={textareaRef}
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={handlePromptKeyDown}
-                        placeholder="e.g. Is {{CONTACT_NAME}} of Indian origin?&#10;e.g. Did {{COMPANY_NAME}} raise funding recently?&#10;e.g. What technologies does {{COMPANY_DOMAIN}} use?&#10;&#10;Type / to insert data columns"
-                        className="w-full flex-1 bg-transparent resize-none focus:outline-none text-sm placeholder:text-muted-foreground leading-relaxed"
-                      />
-
-                    </div>
+                  <div className="relative rounded-xl border-2 border-transparent bg-gradient-to-r from-blue-600 via-white via-blue-600 to-white bg-[length:200%_100%] animate-[gradient_3s_ease_infinite] p-[2px] shadow-sm">
+                    <div className="relative rounded-[10px] bg-card">
+                      <div className="w-full min-h-[280px] p-4 flex flex-col">
+                        <textarea
+                          ref={textareaRef}
+                          value={prompt}
+                          onChange={(e) => setPrompt(e.target.value)}
+                          onKeyDown={handlePromptKeyDown}
+                          placeholder={placeholderText}
+                          className="w-full flex-1 bg-transparent resize-none focus:outline-none text-sm placeholder:text-muted-foreground leading-relaxed"
+                        />
+                      </div>
 
                     {/* Help Me Button - Floating in Prompt Area */}
                     <div className="absolute bottom-[68px] left-4">
@@ -444,141 +608,6 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
                     {/* Configuration Section - Plus and Model Selector */}
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {/* Context Tiles - Show when selected with overflow handling */}
-                        {(() => {
-                          const MAX_VISIBLE_TILES = 2;
-                          const activeTiles = [
-                            geolocation && {
-                              id: 'geolocation',
-                              component: (
-                                <Button
-                                  key="geolocation"
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => setGeolocation("")}
-                                  className="h-8 gap-2 px-3 bg-orange-500 text-white hover:bg-orange-600"
-                                >
-                                  <MapPin className="h-3.5 w-3.5" />
-                                  <span className="text-xs capitalize">{geolocation.replace(/_/g, ' ')}</span>
-                                  <X className="h-3 w-3 ml-1" />
-                                </Button>
-                              )
-                            },
-                            dateRange && {
-                              id: 'dateRange',
-                              component: (
-                                <Button
-                                  key="dateRange"
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => setDateRange("")}
-                                  className="h-8 gap-2 px-3 bg-purple-500 text-white hover:bg-purple-600"
-                                >
-                                  <Clock className="h-3.5 w-3.5" />
-                                  <span className="text-xs capitalize">{dateRange.replace(/_/g, ' ')}</span>
-                                  <X className="h-3 w-3 ml-1" />
-                                </Button>
-                              )
-                            },
-                            outputFormat && {
-                              id: 'outputFormat',
-                              component: (
-                                <Button
-                                  key="outputFormat"
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => setOutputFormat("")}
-                                  className="h-8 gap-2 px-3 bg-green-500 text-white hover:bg-green-600"
-                                >
-                                  <FileText className="h-3.5 w-3.5" />
-                                  <span className="text-xs capitalize">{outputFormat.replace(/_/g, ' ')}</span>
-                                  <X className="h-3 w-3 ml-1" />
-                                </Button>
-                              )
-                            },
-                            webSearchEnabled && {
-                              id: 'webSearch',
-                              component: (
-                                <Button
-                                  key="webSearch"
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => setWebSearchEnabled(false)}
-                                  className="h-8 gap-2 px-3 bg-blue-500 text-white hover:bg-blue-600"
-                                >
-                                  <Globe className="h-3.5 w-3.5" />
-                                  <span className="text-xs">Web Search</span>
-                                  <X className="h-3 w-3 ml-1" />
-                                </Button>
-                              )
-                            }
-                          ].filter(Boolean);
-
-                          const visibleTiles = activeTiles.slice(0, MAX_VISIBLE_TILES);
-                          const remainingCount = activeTiles.length - MAX_VISIBLE_TILES;
-
-                          return (
-                            <>
-                              {visibleTiles.map(tile => tile.component)}
-                              {remainingCount > 0 && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-8 px-3 gap-1.5 border-border hover:bg-secondary"
-                                    >
-                                      <MoreHorizontal className="h-3.5 w-3.5" />
-                                      <span className="text-xs font-medium">+{remainingCount}</span>
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="start" className="w-56">
-                                    <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                      Hidden context
-                                    </DropdownMenuLabel>
-                                    {activeTiles.slice(MAX_VISIBLE_TILES).map(tile => {
-                                      if (tile.id === 'geolocation') {
-                                        return (
-                                          <DropdownMenuItem key={tile.id} onSelect={() => setGeolocation("")} className="gap-2">
-                                            <MapPin className="h-4 w-4 text-orange-500" />
-                                            <span className="text-sm capitalize flex-1">{geolocation.replace(/_/g, ' ')}</span>
-                                            <X className="h-3.5 w-3.5 text-muted-foreground" />
-                                          </DropdownMenuItem>
-                                        );
-                                      } else if (tile.id === 'dateRange') {
-                                        return (
-                                          <DropdownMenuItem key={tile.id} onSelect={() => setDateRange("")} className="gap-2">
-                                            <Clock className="h-4 w-4 text-purple-500" />
-                                            <span className="text-sm capitalize flex-1">{dateRange.replace(/_/g, ' ')}</span>
-                                            <X className="h-3.5 w-3.5 text-muted-foreground" />
-                                          </DropdownMenuItem>
-                                        );
-                                      } else if (tile.id === 'outputFormat') {
-                                        return (
-                                          <DropdownMenuItem key={tile.id} onSelect={() => setOutputFormat("")} className="gap-2">
-                                            <FileText className="h-4 w-4 text-green-500" />
-                                            <span className="text-sm capitalize flex-1">{outputFormat.replace(/_/g, ' ')}</span>
-                                            <X className="h-3.5 w-3.5 text-muted-foreground" />
-                                          </DropdownMenuItem>
-                                        );
-                                      } else if (tile.id === 'webSearch') {
-                                        return (
-                                          <DropdownMenuItem key={tile.id} onSelect={() => setWebSearchEnabled(false)} className="gap-2">
-                                            <Globe className="h-4 w-4 text-blue-500" />
-                                            <span className="text-sm flex-1">Web Search</span>
-                                            <X className="h-3.5 w-3.5 text-muted-foreground" />
-                                          </DropdownMenuItem>
-                                        );
-                                      }
-                                      return null;
-                                    })}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                            </>
-                          );
-                        })()}
-
                         {/* Plus Icon for Additional Options */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -590,6 +619,20 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
                             <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                               Add context
                             </DropdownMenuLabel>
+
+                            {/* Sprouts Library */}
+                            <DropdownMenuItem
+                              className="gap-2 cursor-pointer"
+                              onSelect={() => setShowTemplateLibrary(true)}
+                            >
+                              <Library className="h-4 w-4 text-primary" />
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">Sprouts Library</span>
+                                <span className="text-xs text-muted-foreground">100+ prompt templates</span>
+                              </div>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
 
                             {/* Sprouts Research specific options */}
                             {selectedModel === 'sprouts-research' && (
@@ -677,9 +720,20 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
                         </DropdownMenu>
                       </div>
 
-                      {/* Model Selector */}
+                      {/* Model Selector and Voice Input */}
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Model:</span>
+                        {/* Voice Input Button */}
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          onClick={handleVoiceInput}
+                          className={`h-8 w-8 ${
+                            isRecording ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                          }`}
+                        >
+                          {isRecording ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                        </Button>
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="gap-2 h-9 min-w-[160px] justify-between font-normal">
@@ -717,9 +771,61 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
                   </div>
                 </div>
 
-                <div className="text-xs text-muted-foreground">
-                  Use / to add data columns from Accounts and Contacts page
-                </div>
+                {/* Context Tiles - Show below prompt section when attributes are selected */}
+                {(geolocation || dateRange || outputFormat || webSearchEnabled) && (
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    {geolocation && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setGeolocation("")}
+                        className="h-8 gap-2 px-3 bg-orange-500 text-white hover:bg-orange-600"
+                      >
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span className="text-xs capitalize">{geolocation.replace(/_/g, ' ')}</span>
+                        <X className="h-3 w-3 ml-1" />
+                      </Button>
+                    )}
+                    {dateRange && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setDateRange("")}
+                        className="h-8 gap-2 px-3 bg-purple-500 text-white hover:bg-purple-600"
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        <span className="text-xs capitalize">{dateRange.replace(/_/g, ' ')}</span>
+                        <X className="h-3 w-3 ml-1" />
+                      </Button>
+                    )}
+                    {outputFormat && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setOutputFormat("")}
+                        className="h-8 gap-2 px-3 bg-green-500 text-white hover:bg-green-600"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span className="text-xs capitalize">{outputFormat.replace(/_/g, ' ')}</span>
+                        <X className="h-3 w-3 ml-1" />
+                      </Button>
+                    )}
+                    {webSearchEnabled && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setWebSearchEnabled(false)}
+                        className="h-8 gap-2 px-3 bg-blue-500 text-white hover:bg-blue-600"
+                      >
+                        <Globe className="h-3.5 w-3.5" />
+                        <span className="text-xs">Web Search</span>
+                        <X className="h-3 w-3 ml-1" />
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
 
                 <Separator className="my-4" />
 
@@ -996,6 +1102,140 @@ const SmartColumnModal = ({ open, onOpenChange }: SmartColumnModalProps) => {
 
       {/* Info Modal */}
       <InfoModal open={showInfoModal} onClose={() => setShowInfoModal(false)} />
+
+      {/* Template Library Modal - Rendered OUTSIDE Sheet to avoid z-index stacking context issues */}
+      {showTemplateLibrary && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/50 overflow-y-auto"
+          style={{ zIndex: 9999, pointerEvents: 'auto' }}
+          onMouseDown={(e) => {
+            // Only close if clicking directly on the backdrop
+            if (e.target === e.currentTarget) {
+              setShowTemplateLibrary(false);
+            }
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowTemplateLibrary(false);
+            }
+          }}
+        >
+          <div
+            className="bg-card border border-border rounded-xl shadow-2xl w-[700px] max-h-[80vh] my-8 flex flex-col relative"
+            style={{ pointerEvents: 'auto' }}
+            onMouseDown={(e) => {
+              // Stop all mouse events from bubbling to prevent Sheet from closing
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              // Also stop click events
+              e.stopPropagation();
+            }}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-border" style={{ pointerEvents: 'auto' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+                    <Library className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Sprouts Library</h2>
+                    <p className="text-xs text-muted-foreground">100+ ready-to-use prompt templates</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setShowTemplateLibrary(false);
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  placeholder="Search templates..."
+                  className="pl-10 bg-background"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ pointerEvents: 'auto', cursor: 'text' }}
+                />
+              </div>
+            </div>
+
+            {/* Template List */}
+            <div className="flex-1 overflow-y-auto p-6" style={{ pointerEvents: 'auto' }}>
+              {Object.entries(
+                templateLibrary
+                  .filter(t =>
+                    t.template.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                    t.category.toLowerCase().includes(templateSearch.toLowerCase()) ||
+                    t.description.toLowerCase().includes(templateSearch.toLowerCase())
+                  )
+                  .reduce((acc, template) => {
+                    if (!acc[template.category]) acc[template.category] = [];
+                    acc[template.category].push(template);
+                    return acc;
+                  }, {} as Record<string, typeof templateLibrary>)
+              ).map(([category, templates]) => (
+                <div key={category} className="mb-6">
+                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {templates.length}
+                    </Badge>
+                    {category}
+                  </h3>
+                  <div className="space-y-2">
+                    {templates.map((template, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          console.log('Template clicked:', template.template);
+                          setPrompt(template.template);
+                          setShowTemplateLibrary(false);
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                        }}
+                        className="w-full text-left p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/30 transition-all group cursor-pointer"
+                        style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground group-hover:text-primary">
+                              {template.template}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {template.description}
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary flex-shrink-0 mt-1" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
